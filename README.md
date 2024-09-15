@@ -1,5 +1,7 @@
 # CI Helper Functions
 
+This repo I plan to use to share some common CI scripts I've created over the years.
+
 ## Personal Information Searcher
 
 The logging of sensitive information can present a lucrative target for adversaries. Logs, and the systems that are used to access them are often left without the extra protections that are afforded to operational databases and applications.
