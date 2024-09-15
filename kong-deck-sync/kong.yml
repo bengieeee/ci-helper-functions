@@ -1,0 +1,14 @@
+_format_version: "3.0"
+services:
+  - host: ${{ env "DECK_TEAM" }}-${{ env "DECK_NAME" }}.app.internal.net
+    name: ${{ env "DECK_TEAM" }}-${{ env "DECK_NAME" }}
+    routes:
+      - name: ${{ env "DECK_TEAM" }}-${{ env "DECK_NAME" }}-api
+        strip_path: false
+        methods:
+          - GET
+          - HEAD
+          - OPTIONS
+        paths:
+          - ~/v2/hello$
+          - ~/v2/world$

@@ -1,0 +1,64 @@
+/* This is a function that can be called via a wider Jenkins pipeline - see usage below
+
+Environment Variables to be set:
+- KONG_ADMIN_TOKEN = credentials("/kong_admin_token")
+- DECK_KONG_ADDR = "https://kong-api.internal.net"
+
+Usage:
+```groovy
+kongDeckSync([
+    application: [
+        name: 'TEA',
+        team: 'app-name'
+    ],
+    env: 'sit',
+    action: 'plan'
+])
+```
+
+*/
+
+void call(Map params) {
+    String kongFilename = params.get('filename')?.toString() ?: 'kong.yml'
+
+    if (!fileExists(kongFilename)) {
+        echo "Skipping decK sync because ${kongFilename} does not exist"
+        return
+    }
+
+    try {
+        // Check team code matches exactly 3 lower-case characters
+        assert params.application.team != null && params.application.team =~ /^[a-z]{3}$/
+        // Check app name matches 4 or more lower-case characters, with dashes (-) also allowed
+        assert params.application.name != null && params.application.name =~ /^[a-z\-]{4,}$/
+        assert params.env in ['dev', 'sit', 'stg', 'prd']
+        assert params.action in ['plan', 'deploy'] == true
+    } catch (err) {
+        currentBuild.result = 'FAILED'
+        error("Parameters passed to Kong Deck Sync were incorrect: ${err}")
+    }
+
+    withEnv([
+        "DECK_ENV=${params.env}",
+        "DECK_TEAM=${params.application.team}",
+        "DECK_NAME=${params.application.name}"
+    ]) {
+        // Add tags to all resources in the local file, into a new file, then replace the original file
+        sh "deck file add-tags ${DECK_TEAM}-${DECK_NAME} < ${kongFilename} > kong-temp.yml && mv kong-temp.yml kong.yml"
+
+        // Validate the Kong File with env-variables and tags
+        sh "deck file validate < kong.yml"
+
+        String kongOptions = "--headers 'Kong-Admin-Token:${env.KONG_ADMIN_TOKEN}' --select-tag ${DECK_TEAM}-${DECK_NAME} --skip-ca-certificates --skip-consumers"
+
+        sh "deck gateway dump ${kongOptions}"
+
+        // Sync Kong with tags
+        if (params.action == 'plan') {
+            sh "deck gateway diff ${kongOptions} < kong.yml"
+            return
+        }
+
+        sh "deck gateway sync ${kongOptions} < kong.yml"
+    }
+}
